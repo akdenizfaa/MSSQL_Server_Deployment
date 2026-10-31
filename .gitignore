@@ -1,0 +1,11 @@
+*.retry
+*.vault_pass
+.vault_pass*
+*.key
+*.pem
+*.keytab
+tmp/
+reports/
+collections/ansible_collections/
+.ansible/
+__pycache__/
