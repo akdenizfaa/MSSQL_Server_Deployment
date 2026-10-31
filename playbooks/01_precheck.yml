@@ -2,7 +2,7 @@
 # PHASE 2 - Kurulum öncesi kontroller. Hedefte HİÇBİR değişiklik yapmaz.
 # Önce bağlantı katmanı çalışır (transport tespiti için zorunlu), sonra precheck.
 #
-# AWX/AAP : Job Template "SQL - 01 Precheck" (survey: awx/surveys/01_precheck.json)
+# AAP     : Job Template "SQL - 01 Precheck" (survey: aap/surveys/01_precheck.json)
 # CLI     : ansible-playbook -i inventories/dev/hosts.yml playbooks/01_precheck.yml --limit <host> \
 #             -e ansible_user=user@CORP.EXAMPLE.COM -e ansible_password=...
 
@@ -50,7 +50,7 @@
       loop_control:
         label: "{{ item }}"
 
-    - name: Publish AWX artifact
+    - name: Publish AAP artifact
       ansible.builtin.set_stats:
         data:
           sql_execution_id: "{{ sql_execution_id }}"

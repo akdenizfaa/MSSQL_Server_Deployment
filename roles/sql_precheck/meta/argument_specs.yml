@@ -3,6 +3,9 @@ argument_specs:
   main:
     short_description: SQL Server 2025 kurulum öncesi salt-okuma kontrolleri
     options:
+      sql_precheck_version:
+        type: str
+        description: Hedef SQL Server sürümü (2019 | 2022 | 2025). Zorunlu; tasks içinde doğrulanır.
       sql_precheck_instance_name:
         type: str
         default: MSSQLSERVER

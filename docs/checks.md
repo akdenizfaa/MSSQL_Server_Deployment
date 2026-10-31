@@ -20,22 +20,25 @@ Status: **PASS** · **WARN** (devam edilebilir; PROD'da `sql_precheck_fail_on_wa
 
 ## Faz 2 – Precheck (`sql_precheck`)
 
+Gereksinimler seçilen `sql_version` (2019 | 2022 | 2025) için `playbooks/group_vars/all/sql_version_matrix.yml`'den gelir.
+
 | ID | Kontrol | FAIL/WARN koşulu | Kaynak |
 |---|---|---|---|
-| PC-001 | Desteklenen OS | Build 17763/20348/26100 değil → FAIL | Microsoft |
+| PC-001 | Desteklenen OS (seçilen SQL sürümü için) | Build matriste yok → FAIL | Microsoft |
 | PC-002 | Product type | Workstation → FAIL; DC → FAIL (`allow_domain_controller` ile WARN) | Microsoft |
 | PC-003 | Mimari | x64 değil → FAIL | Microsoft |
 | PC-004 | Installation type | INFO (Server / Server Core) | — |
-| PC-005 | .NET Framework | Release < 461808 (4.7.2) → FAIL | Microsoft |
+| PC-005 | .NET Framework | 2022/2025: release < 461808 (4.7.2) → FAIL. 2019: Microsoft ayrı şart belirtmiyor → INFO | Microsoft |
 | PC-006 | CPU hızı | < 1400 MHz → FAIL | Microsoft |
 | PC-007 | CPU topolojisi | INFO (Faz 5 MAXDOP/tempdb için) | — |
 | PC-008 | RAM | < 1024 MB → FAIL | Microsoft |
-| PC-009 | C: boş alan | < 6 GB → FAIL | Microsoft |
+| PC-009 | Sistem sürücüsü boş alan | < 6 GB → FAIL (setup geçici dosyaları) | Microsoft |
+| PC-019 | Binary sürücüsü (sistemden farklıysa) | Yok → FAIL, varsa INFO | — |
 | PC-010/013/016 | D: / L: / T: mevcut ve yerel sabit disk | Yok veya DriveType≠3 → FAIL | Kurumsal standart |
 | PC-011/014/017 | D: / L: / T: dosya sistemi | NTFS/ReFS değil → FAIL | Microsoft |
 | PC-012/015/018 | D: / L: / T: allocation unit | 64 KB değil → WARN | Best practice |
 | PC-030 | Bekleyen reboot | CBS, WU, PendingFileRename, ComputerRename, DomainJoin, UpdateExeVolatile → FAIL | SQL setup kuralı |
 | PC-031 | Windows Installer servisi | Disabled → FAIL | SQL setup |
-| PC-032 | Hedef instance durumu | Zaten kurulu → WARN | İdempotency |
+| PC-032 | Hedef instance durumu | Aynı ad + aynı major → WARN (idempotency). Aynı ad + farklı major → FAIL (ad çakışması, upgrade kapsam dışı) | İdempotency |
 | PC-033 | Diğer SQL instance'lar | INFO | — |
-| PC-034 | TCP port | Başka süreç dinliyor → WARN | Port çakışması |
+| PC-034 | TCP port | Başka süreç veya farklı sürümdeki instance dinliyor → WARN; aynı sürümdeki hedef instance → INFO | Port çakışması |

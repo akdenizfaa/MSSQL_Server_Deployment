@@ -1,7 +1,8 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    SQL Server 2025 kurulum öncesi kontroller. SALT OKUMA - hedefte değişiklik yapmaz.
+    SQL Server 2019 / 2022 / 2025 kurulum öncesi kontroller. SALT OKUMA - hedefte değişiklik yapmaz.
+    Sürüme özgü gereksinimler (desteklenen OS, .NET, donanım) Ansible'dan policy olarak gelir.
 .DESCRIPTION
     Politika (eşikler, sürücüler, desteklenen OS listesi) Ansible'dan JSON olarak gelir.
     Script iki şey döndürür:
@@ -58,14 +59,15 @@ Invoke-Section 'PC-001' 'Supported operating system' {
         installation_type = $cv.InstallationType
         architecture      = $os.OSArchitecture
     }
-    $supported = @($policy.supported_os | Where-Object { [int]$_.build -eq $build })
-    $expected  = ($policy.supported_os | ForEach-Object { $_.name }) -join ' / '
+    $supportedBuilds = @($policy.supported_os_builds | ForEach-Object { [int]$_ })
+    $supported = @($supportedBuilds | Where-Object { $_ -eq $build })
+    $expected  = ($supportedBuilds | ForEach-Object { $policy.os_catalog."$_" }) -join ' / '
     if ($supported.Count -gt 0 -and $os.Caption -match 'Server') {
         Add-Check 'PC-001' 'Supported operating system' 'PASS' $expected "$($os.Caption) ($build.$($cv.UBR))"
     }
     else {
         Add-Check 'PC-001' 'Supported operating system' 'FAIL' $expected "$($os.Caption) ($build)" `
-            'SQL Server 2025 sadece Windows Server 2019/2022/2025 üzerinde desteklenir.'
+            "$($policy.product) için desteklenen işletim sistemleri: $expected."
     }
 
     # PC-002: ProductType 1=Workstation 2=Domain Controller 3=Server
@@ -85,21 +87,27 @@ Invoke-Section 'PC-001' 'Supported operating system' {
         Add-Check 'PC-003' 'Architecture' 'PASS' 'x64' 'x64'
     }
     else {
-        Add-Check 'PC-003' 'Architecture' 'FAIL' 'x64' "$($os.OSArchitecture) / cpu=$cpuArch" 'SQL Server 2025 sadece x64 destekler.'
+        Add-Check 'PC-003' 'Architecture' 'FAIL' 'x64' "$($os.OSArchitecture) / cpu=$cpuArch" "$($policy.product) sadece x64 destekler."
     }
 
     Add-Check 'PC-004' 'Installation type' 'INFO' '-' $cv.InstallationType
 }
 
 # ------------------------------------------------------------- .NET ---------
-Invoke-Section 'PC-005' '.NET Framework 4.7.2+' {
+Invoke-Section 'PC-005' '.NET Framework' {
     $rel = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -ErrorAction SilentlyContinue).Release
     $facts.dotnet_release = $rel
-    if ($rel -and [int]$rel -ge [int]$policy.min_dotnet_release) {
-        Add-Check 'PC-005' '.NET Framework 4.7.2+' 'PASS' ">= $($policy.min_dotnet_release)" $rel
+    if ($null -eq $policy.min_dotnet_release) {
+        # Microsoft bu sürüm için ayrı bir .NET şartı belirtmiyor (OS ile gelen yeterli).
+        Add-Check 'PC-005' '.NET Framework' 'INFO' 'OS-supplied' "release=$rel" `
+            "$($policy.product) için ayrı .NET şartı yok; desteklenen OS'in .NET sürümü yeterli."
+    }
+    elseif ($rel -and [int]$rel -ge [int]$policy.min_dotnet_release) {
+        Add-Check 'PC-005' '.NET Framework' 'PASS' ">= $($policy.min_dotnet_release)" $rel
     }
     else {
-        Add-Check 'PC-005' '.NET Framework 4.7.2+' 'FAIL' ">= $($policy.min_dotnet_release)" "$rel" '.NET Framework 4.7.2 veya üzeri gerekli.'
+        Add-Check 'PC-005' '.NET Framework' 'FAIL' ">= $($policy.min_dotnet_release)" "$rel" `
+            "$($policy.product) .NET Framework 4.7.2 (release 461808) veya üzerini gerektirir."
     }
 }
 
@@ -135,13 +143,23 @@ function Get-DiskNumber([string]$Letter) {
     catch { return 'n/a' }
 }
 
-Invoke-Section 'PC-009' 'Binaries drive free space' {
-    $bin = $policy.binaries_drive
-    $v = $volumes | Where-Object { $_.DriveLetter -eq "$($bin):" }
+# Microsoft: 6 GB boş alan SİSTEM sürücüsünde gerekli (Windows Installer geçici dosyaları),
+# bileşenler başka sürücüye kurulsa bile.
+Invoke-Section 'PC-009' 'System drive free space' {
+    $sys = $env:SystemDrive.TrimEnd(':').ToUpper()
+    $v = $volumes | Where-Object { $_.DriveLetter -eq "$($sys):" }
     $freeGb = [math]::Round($v.FreeSpace / 1GB, 1)
-    $st = if ($freeGb -ge [double]$policy.min_binaries_free_gb) { 'PASS' } else { 'FAIL' }
-    Add-Check 'PC-009' "Drive $($bin): free space (GB)" $st ">= $($policy.min_binaries_free_gb)" $freeGb `
-        'SQL binary ve shared feature dizini için Microsoft minimumu 6 GB.'
+    $st = if ($freeGb -ge [double]$policy.min_system_drive_free_gb) { 'PASS' } else { 'FAIL' }
+    Add-Check 'PC-009' "System drive $($sys): free (GB)" $st ">= $($policy.min_system_drive_free_gb)" $freeGb `
+        'Microsoft minimumu: sistem sürücüsünde 6 GB (setup geçici dosyaları).'
+
+    $bin = ([string]$policy.binaries_drive).ToUpper()
+    if ($bin -ne $sys) {
+        $b = $volumes | Where-Object { $_.DriveLetter -eq "$($bin):" }
+        $bFree = if ($b) { [math]::Round($b.FreeSpace / 1GB, 1) } else { 'missing' }
+        $st = if ($b) { 'INFO' } else { 'FAIL' }
+        Add-Check 'PC-019' "Binaries drive $($bin): free (GB)" $st '-' $bFree "Binary sürücüsü $($bin): bulunamadı."
+    }
 }
 
 $idx = 10
@@ -233,15 +251,26 @@ Invoke-Section 'PC-032' 'Target instance state' {
     $facts.sql_instances = $instances
     $target = $instances | Where-Object { $_.name -eq $policy.instance_name }
     if ($target) {
-        Add-Check 'PC-032' "Instance '$($policy.instance_name)' state" 'WARN' 'not installed' `
-            "installed $($target.patch_level) $($target.edition)" `
-            'Instance zaten kurulu. Install fazı bunu algılayıp yeniden kurulum YAPMAYACAK; build/edition doğrulamasına geçecek.'
+        $installedMajor = [int](([string]$target.version).Split('.')[0])
+        if ($installedMajor -eq [int]$policy.target_major) {
+            Add-Check 'PC-032' "Instance '$($policy.instance_name)' state" 'WARN' 'not installed' `
+                "installed $($target.patch_level) $($target.edition)" `
+                'Aynı sürüm zaten kurulu. Install fazı yeniden kurulum YAPMAYACAK; build/edition doğrulamasına geçecek.'
+        }
+        else {
+            Add-Check 'PC-032' "Instance '$($policy.instance_name)' state" 'FAIL' "not installed (target major $($policy.target_major))" `
+                "installed major $installedMajor ($($target.patch_level))" `
+                'Aynı adla farklı sürüm kurulu. Instance adı çakışıyor; in-place upgrade bu otomasyonun kapsamı dışında. Farklı instance adı seçin.'
+        }
     }
     else {
         Add-Check 'PC-032' "Instance '$($policy.instance_name)' state" 'PASS' 'not installed' 'not installed'
     }
     $others = @($instances | Where-Object { $_.name -ne $policy.instance_name } | ForEach-Object { "$($_.name)=$($_.patch_level)" })
-    if ($others.Count -gt 0) { Add-Check 'PC-033' 'Other SQL instances' 'INFO' '-' ($others -join ', ') }
+    if ($others.Count -gt 0) {
+        Add-Check 'PC-033' 'Other SQL instances (side-by-side)' 'INFO' '-' ($others -join ', ') `
+            'Bilgi: farklı sürümler side-by-side kurulabilir; instance adları farklı olmalı.'
+    }
 }
 
 # ---------------------------------------------------------- TCP port --------
@@ -253,8 +282,11 @@ Invoke-Section 'PC-034' 'TCP port availability' {
     }
     else {
         $owners = ($listen | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName } | Sort-Object -Unique) -join ','
-        $targetExists = @($facts.sql_instances | Where-Object { $_.name -eq $policy.instance_name }).Count -gt 0
-        if ($targetExists -and $owners -eq 'sqlservr') {
+        # Port yalnızca hedef instance AYNI major sürümle zaten kuruluysa "beklenen" sayılır
+        $sameInstance = @($facts.sql_instances | Where-Object {
+                $_.name -eq $policy.instance_name -and [int](([string]$_.version).Split('.')[0]) -eq [int]$policy.target_major
+            }).Count -gt 0
+        if ($sameInstance -and $owners -eq 'sqlservr') {
             # Port, zaten kurulu olan hedef instance'a ait (PC-032 ile tutarlı)
             Add-Check 'PC-034' "TCP $port free" 'INFO' 'not listening' "in use by sqlservr (existing target instance)"
         }

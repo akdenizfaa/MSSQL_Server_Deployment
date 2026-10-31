@@ -1,7 +1,20 @@
 {
   "name": "SQL - 01 Precheck",
-  "description": "SQL Server 2025 kurulum öncesi salt-okuma kontrolleri. Hedef hostlar 'Limit' alanından seçilir.",
+  "description": "SQL Server 2019/2022/2025 kurulum öncesi salt-okuma kontrolleri. Hedef hostlar 'Limit' alanından seçilir.",
   "spec": [
+    {
+      "question_name": "SQL Server sürümü",
+      "question_description": "Kurulacak sürüm. Desteklenen OS, .NET ve mevcut instance kontrolleri buna göre yapılır.",
+      "variable": "sql_version",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "2019",
+        "2022",
+        "2025"
+      ],
+      "default": ""
+    },
     {
       "question_name": "Instance adı",
       "question_description": "Default instance için MSSQLSERVER. Named instance: en fazla 16 karakter.",

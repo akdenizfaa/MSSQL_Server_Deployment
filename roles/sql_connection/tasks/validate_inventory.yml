@@ -17,7 +17,7 @@
          }] }}
     sql_connection_blocked: "{{ not sql_connection_is_fqdn | bool }}"
 
-# CN-002: Controller (AWX EE) hedef adını çözebiliyor mu?
+# CN-002: Controller (AAP execution environment) hedef adını çözebiliyor mu?
 - name: Resolve target name from controller (CN-002)
   ansible.builtin.command:
     argv: [getent, ahosts, "{{ sql_connection_target }}"]

@@ -9,7 +9,7 @@ cd "$ROOT"
 
 echo "== 1) PowerShell parse + mock run =="
 if command -v pwsh >/dev/null; then
-  pwsh -NoProfile -File tests/powershell/Invoke-SqlPrecheck.Mock.ps1 -Script "$ROOT/roles/sql_precheck/files/Invoke-SqlPrecheck.ps1"
+  pwsh -NoProfile -File tests/powershell/Invoke-SqlPrecheck.Mock.ps1 -Script "$ROOT/roles/sql_precheck/files/Invoke-SqlPrecheck.ps1" | tail -1
 else
   echo "pwsh yok, atlandı"
 fi
@@ -20,9 +20,20 @@ python3 -c "import socket,sys;s=socket.socket();s.setsockopt(socket.SOL_SOCKET,s
 while True: c,_=s.accept();c.close()" &
 LPID=$!; trap 'kill $LPID' EXIT
 export ANSIBLE_COLLECTIONS_PATH="$ROOT/tests/mock/collections:${ANSIBLE_COLLECTIONS_PATH:-$HOME/.ansible/collections}"
-for fx in good bad ntlm; do
+# fixture | extra-vars | beklenen rc
+run_case() {
+  local name=$1 fx=$2 extra=$3 want=$4
   set +e
-  MOCK_FIXTURE=$fx ansible-playbook -i tests/mock/inventory.yml playbooks/01_precheck.yml >/tmp/mock_$fx.log 2>&1
-  rc=$?; set -e
-  echo "fixture=$fx rc=$rc  (beklenen: good=0, bad=2, ntlm=2)"
-done
+  MOCK_FIXTURE=$fx ansible-playbook -i tests/mock/inventory.yml playbooks/01_precheck.yml $extra >"/tmp/mock_${name}.log" 2>&1
+  local rc=$?; set -e
+  if [ "$rc" = "$want" ]; then echo "PASS  $name (rc=$rc)"; else echo "FAIL  $name (rc=$rc, beklenen $want) -> /tmp/mock_${name}.log"; FAILED=1; fi
+}
+FAILED=0
+run_case good_2019   good "-e sql_version=2019" 0
+run_case good_2022   good "-e sql_version=2022" 0
+run_case good_2025   good "-e sql_version=2025" 0
+run_case no_version  good ""                    2
+run_case bad_version good "-e sql_version=2017" 2
+run_case disk_fail   bad  "-e sql_version=2025" 2
+run_case ntlm        ntlm "-e sql_version=2025" 2
+exit $FAILED

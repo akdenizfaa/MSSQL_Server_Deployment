@@ -1,7 +1,7 @@
 ---
 # PHASE 1 - Bağlantı doğrulaması. Hedefte HİÇBİR değişiklik yapmaz.
 #
-# AWX/AAP : Job Template "SQL - 00 Connectivity Check" (survey: awx/surveys/00_connectivity_check.json)
+# AAP     : Job Template "SQL - 00 Connectivity Check" (survey: aap/surveys/00_connectivity_check.json)
 # CLI     : ansible-playbook -i inventories/dev/hosts.yml playbooks/00_connectivity_check.yml --limit <host> \
 #             -e ansible_user=user@CORP.EXAMPLE.COM -e ansible_password=...
 
@@ -47,8 +47,8 @@
       loop_control:
         label: "{{ item }}"
 
-    # AWX/AAP job artifact: workflow'daki sonraki adımlar bu veriyi okuyabilir.
-    - name: Publish AWX artifact
+    # AAP job artifact: workflow'daki sonraki adımlar bu veriyi okuyabilir.
+    - name: Publish AAP artifact
       ansible.builtin.set_stats:
         data:
           sql_execution_id: "{{ sql_execution_id }}"

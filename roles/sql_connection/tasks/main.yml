@@ -1,7 +1,7 @@
 ---
 # Akış: inventory doğrula -> transport tespit et -> oturumu doğrula -> (ops.) medya erişimi -> rapor
 # Her adım sql_connection_checks listesine bir kayıt ekler. Bir adım bloklayıcı hata
-# verirse sonraki adımlar atlanır ama rapor yine de üretilir (AWX'te tam görünürlük).
+# verirse sonraki adımlar atlanır ama rapor yine de üretilir (AAP job çıktısında tam görünürlük).
 - name: Initialize connection check state
   ansible.builtin.set_fact:
     sql_connection_checks: []

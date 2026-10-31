@@ -2,6 +2,21 @@
 # Akış: girdi doğrula -> tek PowerShell çağrısıyla topla+değerlendir -> rapor -> karar
 # Hedefte değişiklik YAPILMAZ. Check mode'da da çalışır (SupportsShouldProcess).
 
+- name: Validate SQL Server version input
+  ansible.builtin.assert:
+    that:
+      - sql_version_matrix is defined
+      - sql_precheck_version in sql_version_matrix
+    fail_msg: >-
+      sql_version zorunludur ve şu değerlerden biri olmalıdır:
+      {{ (sql_version_matrix | default({})).keys() | list | join(' | ') }}.
+      Verilen: '{{ sql_precheck_version }}'. (AAP survey'deki 'SQL Server sürümü' alanı)
+    quiet: true
+
+- name: Select requirements for target SQL Server version
+  ansible.builtin.set_fact:
+    sql_precheck_req: "{{ sql_version_matrix[sql_precheck_version] }}"
+
 - name: Validate instance name format
   ansible.builtin.assert:
     that:
@@ -28,11 +43,16 @@
       PolicyJson: "{{ sql_precheck_policy | to_json }}"
   vars:
     sql_precheck_policy:
-      supported_os: "{{ sql_precheck_ms_requirements.supported_os }}"
-      min_ram_mb: "{{ sql_precheck_ms_requirements.min_ram_mb }}"
-      min_cpu_mhz: "{{ sql_precheck_ms_requirements.min_cpu_mhz }}"
-      min_binaries_free_gb: "{{ sql_precheck_ms_requirements.min_binaries_free_gb }}"
-      min_dotnet_release: "{{ sql_precheck_ms_requirements.min_dotnet_release }}"
+      sql_version: "{{ sql_precheck_version }}"
+      product: "{{ sql_precheck_req.product }}"
+      target_major: "{{ sql_precheck_req.major }}"
+      supported_os_builds: "{{ sql_precheck_req.supported_os_builds }}"
+      # build -> ad eşlemesi (rapor metni için); JSON anahtarları string olur
+      os_catalog: "{{ sql_os_catalog }}"
+      min_ram_mb: "{{ sql_precheck_req.min_ram_mb }}"
+      min_cpu_mhz: "{{ sql_precheck_req.min_cpu_mhz }}"
+      min_system_drive_free_gb: "{{ sql_precheck_req.min_system_drive_free_gb }}"
+      min_dotnet_release: "{{ sql_precheck_req.min_dotnet_release }}"
       binaries_drive: "{{ sql_precheck_binaries_drive | upper }}"
       required_drives: "{{ sql_precheck_required_drives }}"
       allowed_filesystems: "{{ sql_precheck_allowed_filesystems }}"
@@ -53,7 +73,7 @@
     name: sql_common
     tasks_from: report_checks
   vars:
-    sql_common_report_title: "SQL SERVER 2025 PRECHECK"
+    sql_common_report_title: "{{ sql_precheck_req.product | upper }} PRECHECK"
     sql_common_report_checks: "{{ sql_precheck_checks }}"
 
 - name: Publish precheck result
@@ -61,6 +81,7 @@
     sql_precheck_result:
       status: "{{ sql_common_report_status }}"
       counts: "{{ sql_common_report_counts }}"
+      sql_version: "{{ sql_precheck_version }}"
       instance_name: "{{ sql_precheck_instance_name }}"
       facts: "{{ sql_precheck_facts }}"
       checks: "{{ sql_precheck_checks }}"

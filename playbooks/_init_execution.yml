@@ -11,7 +11,7 @@
       ansible.builtin.set_fact:
         sql_execution_id: "{{ (now(utc=true).isoformat() ~ ((2 ** 62) | random | string)) | to_uuid }}"
         sql_execution_started_utc: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
-        # AWX/AAP job ID varsa korunur; CLI çalışmasında 'cli' yazılır.
+        # AAP job ID (awx_job_id) varsa korunur; CLI çalışmasında 'cli' yazılır.
         sql_execution_job_id: "{{ awx_job_id | default(tower_job_id | default('cli')) }}"
 
     - name: Show execution context

@@ -4,10 +4,10 @@ sql_environment: "PROD"
 
 # ---- WinRM / Kerberos bağlantı modeli ------------------------------------
 # Kimlik bilgisi (ansible_user / ansible_password) burada TUTULMAZ.
-# AWX/AAP "Machine" credential'ından enjekte edilir (user@REALM formatında).
+# AAP "Machine" credential'ından enjekte edilir (user@REALM formatında).
 ansible_connection: winrm
 ansible_winrm_transport: kerberos
-# managed: pywinrm verilen şifreyle kinit'i kendisi yapar (AWX için uygun).
+# managed: pywinrm verilen şifreyle kinit'i kendisi yapar (AAP için uygun).
 ansible_winrm_kinit_mode: managed
 
 # auto  -> 5986 açıksa HTTPS, değilse 5985 HTTP (Kerberos mesaj şifrelemesiyle)
