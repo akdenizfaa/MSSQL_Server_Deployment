@@ -1,0 +1,76 @@
+---
+# Akış: girdi doğrula -> tek PowerShell çağrısıyla topla+değerlendir -> rapor -> karar
+# Hedefte değişiklik YAPILMAZ. Check mode'da da çalışır (SupportsShouldProcess).
+
+- name: Validate instance name format
+  ansible.builtin.assert:
+    that:
+      - sql_precheck_instance_name is match('^[A-Za-z_][A-Za-z0-9_$]{0,15}$')
+      - sql_precheck_instance_name | upper != 'DEFAULT'
+    fail_msg: >-
+      Geçersiz instance adı '{{ sql_precheck_instance_name }}'. Kurallar: en fazla 16 karakter,
+      harf veya '_' ile başlar, sadece harf/rakam/'_'/'$'. Default instance için MSSQLSERVER kullanın.
+    quiet: true
+
+- name: Validate drive letters
+  ansible.builtin.assert:
+    that:
+      - (sql_precheck_required_drives | map(attribute='letter') | list + [sql_precheck_binaries_drive])
+        | map('upper') | select('match', '^[A-Z]$') | list | length == (sql_precheck_required_drives | length + 1)
+      - (sql_precheck_required_drives | map(attribute='letter') | map('upper') | unique | list | length) == (sql_precheck_required_drives | length)
+    fail_msg: "Sürücü harfleri tek harf olmalı ve D/L/T birbirinden farklı olmalı."
+    quiet: true
+
+- name: Run precheck on target
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'Invoke-SqlPrecheck.ps1') }}"
+    parameters:
+      PolicyJson: "{{ sql_precheck_policy | to_json }}"
+  vars:
+    sql_precheck_policy:
+      supported_os: "{{ sql_precheck_ms_requirements.supported_os }}"
+      min_ram_mb: "{{ sql_precheck_ms_requirements.min_ram_mb }}"
+      min_cpu_mhz: "{{ sql_precheck_ms_requirements.min_cpu_mhz }}"
+      min_binaries_free_gb: "{{ sql_precheck_ms_requirements.min_binaries_free_gb }}"
+      min_dotnet_release: "{{ sql_precheck_ms_requirements.min_dotnet_release }}"
+      binaries_drive: "{{ sql_precheck_binaries_drive | upper }}"
+      required_drives: "{{ sql_precheck_required_drives }}"
+      allowed_filesystems: "{{ sql_precheck_allowed_filesystems }}"
+      recommended_allocation_unit_kb: "{{ sql_precheck_recommended_allocation_unit_kb }}"
+      instance_name: "{{ sql_precheck_instance_name }}"
+      tcp_port: "{{ sql_precheck_tcp_port }}"
+      fail_on_pending_reboot: "{{ sql_precheck_fail_on_pending_reboot }}"
+      allow_domain_controller: "{{ sql_precheck_allow_domain_controller }}"
+  register: sql_precheck_raw
+
+- name: Store precheck facts and checks
+  ansible.builtin.set_fact:
+    sql_precheck_facts: "{{ sql_precheck_raw.result.facts }}"
+    sql_precheck_checks: "{{ sql_precheck_raw.result.checks }}"
+
+- name: Build precheck report
+  ansible.builtin.include_role:
+    name: sql_common
+    tasks_from: report_checks
+  vars:
+    sql_common_report_title: "SQL SERVER 2025 PRECHECK"
+    sql_common_report_checks: "{{ sql_precheck_checks }}"
+
+- name: Publish precheck result
+  ansible.builtin.set_fact:
+    sql_precheck_result:
+      status: "{{ sql_common_report_status }}"
+      counts: "{{ sql_common_report_counts }}"
+      instance_name: "{{ sql_precheck_instance_name }}"
+      facts: "{{ sql_precheck_facts }}"
+      checks: "{{ sql_precheck_checks }}"
+
+- name: Fail host when precheck does not pass
+  ansible.builtin.fail:
+    msg: >-
+      Precheck {{ sql_common_report_status }}:
+      {{ sql_precheck_checks | selectattr('status', 'in', ['FAIL'] + (['WARN'] if sql_precheck_fail_on_warning else []))
+         | map(attribute='id') | join(', ') }}
+  when: >-
+    sql_common_report_status == 'FAILED'
+    or (sql_precheck_fail_on_warning and sql_common_report_status == 'PASSED_WITH_WARNINGS')

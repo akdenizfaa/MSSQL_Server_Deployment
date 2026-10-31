@@ -1,0 +1,72 @@
+---
+# PHASE 1 - Bağlantı doğrulaması. Hedefte HİÇBİR değişiklik yapmaz.
+#
+# AWX/AAP : Job Template "SQL - 00 Connectivity Check" (survey: awx/surveys/00_connectivity_check.json)
+# CLI     : ansible-playbook -i inventories/dev/hosts.yml playbooks/00_connectivity_check.yml --limit <host> \
+#             -e ansible_user=user@CORP.EXAMPLE.COM -e ansible_password=...
+
+- name: Initialize
+  ansible.builtin.import_playbook: _init_execution.yml
+
+- name: SQL Server automation - connectivity check
+  hosts: sql_targets
+  gather_facts: false
+  tasks:
+    # block/rescue: Bir host başarısız olsa bile (hatta hepsi) özet play'i çalışsın.
+    # Ansible'da bir play'deki TÜM hostlar fail olursa sonraki play'ler atlanır;
+    # rescue bunu engeller, hata bilgisi sql_host_failed_at olarak saklanır.
+    - name: Connectivity
+      block:
+        - name: Run connection checks
+          ansible.builtin.include_role:
+            name: sql_connection
+      rescue:
+        - name: Record failure point
+          ansible.builtin.set_fact:
+            sql_host_failed_at: "{{ ansible_failed_task.name | default('unknown') }}"
+
+- name: Publish summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Build per-host summary
+      ansible.builtin.set_fact:
+        sql_connectivity_summary: >-
+          {{ sql_connectivity_summary | default({}) | combine({
+               item: {
+                 'status': (hostvars[item].sql_connection_result | default({})).status | default('FAILED'),
+                 'scheme': (hostvars[item].sql_connection_result | default({})).scheme | default('none'),
+                 'failed_at': hostvars[item].sql_host_failed_at | default(''),
+                 'checks': (hostvars[item].sql_connection_result | default({})).checks | default([])
+               }
+             }) }}
+      loop: "{{ groups['sql_targets'] | default([]) }}"
+      # --limit dışında kalan hostlar bu çalışmaya dahil değil -> özetten çıkar
+      when: hostvars[item].sql_connection_result is defined or hostvars[item].sql_host_failed_at is defined
+      loop_control:
+        label: "{{ item }}"
+
+    # AWX/AAP job artifact: workflow'daki sonraki adımlar bu veriyi okuyabilir.
+    - name: Publish AWX artifact
+      ansible.builtin.set_stats:
+        data:
+          sql_execution_id: "{{ sql_execution_id }}"
+          sql_connectivity_summary: "{{ sql_connectivity_summary | default({}) }}"
+        per_host: false
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          execution_id: {{ sql_execution_id }}
+          {% for h, r in (sql_connectivity_summary | default({})).items() %}
+          {{ '%-45s %-22s %s' | format(h, r.status, r.scheme) }}
+          {% endfor %}
+
+    - name: Fail job when any host failed
+      ansible.builtin.fail:
+        msg: "Başarısız hostlar: {{ sql_connectivity_failed | join(', ') }}"
+      vars:
+        sql_connectivity_failed: >-
+          {{ sql_connectivity_summary | default({}) | dict2items | selectattr('value.status', 'eq', 'FAILED') | map(attribute='key') | list }}
+      when: sql_connectivity_failed | length > 0

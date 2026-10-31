@@ -1,0 +1,33 @@
+---
+# ---- Ortam kimliği -------------------------------------------------------
+sql_environment: "UAT"
+
+# ---- WinRM / Kerberos bağlantı modeli ------------------------------------
+# Kimlik bilgisi (ansible_user / ansible_password) burada TUTULMAZ.
+# AWX/AAP "Machine" credential'ından enjekte edilir (user@REALM formatında).
+ansible_connection: winrm
+ansible_winrm_transport: kerberos
+# managed: pywinrm verilen şifreyle kinit'i kendisi yapar (AWX için uygun).
+ansible_winrm_kinit_mode: managed
+
+# auto  -> 5986 açıksa HTTPS, değilse 5985 HTTP (Kerberos mesaj şifrelemesiyle)
+# https -> sadece HTTPS dene
+# http  -> sadece HTTP dene
+sql_connection_winrm_scheme: auto
+
+# HTTPS sertifika doğrulaması. 'validate' güvenli default'tur.
+# Kurumsal CA controller/EE tarafından güvenilir değilse bağlantı hata verir;
+# bu durumda 'ignore' yerine CA'yı EE'ye eklemek doğru çözümdür.
+sql_connection_cert_validation: validate
+
+# ---- Fazlar arası ortak SQL parametreleri ---------------------------------
+# DEFAULT: default instance. Survey ile override edilebilir.
+sql_instance_name: MSSQLSERVER
+# DEFAULT: 1433. Kurumsal port standardı teyit edilmedi (IR-3).
+sql_tcp_port: 1433
+sql_binaries_drive: C
+# Kurumsal standart (kullanıcı teyitli): D=data + system DB root, L=log, T=tempdb
+sql_storage_drives:
+  data: D
+  log: L
+  tempdb: T

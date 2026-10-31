@@ -1,0 +1,69 @@
+---
+# CN-004: WinRM + Kerberos ile gerçek oturum açılabiliyor mu?
+# Kerberos/kimlik hataları genellikle "unreachable" olarak döner; rescue bunu
+# yakalayamaz. Bu yüzden ignore_unreachable + register ile değerlendiriyoruz.
+- name: Open WinRM session (CN-004)
+  ansible.windows.win_ping:
+  register: sql_connection_ping
+  ignore_unreachable: true
+  ignore_errors: true # noqa: ignore-errors  (hata raporlanıp host bilinçli olarak durdurulur)
+
+- name: Record session result (CN-004)
+  vars:
+    sql_connection_ping_ok: "{{ sql_connection_ping is succeeded and not (sql_connection_ping.unreachable | default(false)) }}"
+  ansible.builtin.set_fact:
+    sql_connection_blocked: "{{ not sql_connection_ping_ok | bool }}"
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-004', 'name': 'WinRM session (Kerberos)',
+           'status': 'PASS' if sql_connection_ping_ok | bool else 'FAIL',
+           'expected': 'pong',
+           'actual': 'pong' if sql_connection_ping_ok | bool else (sql_connection_ping.msg | default('error') | truncate(200)),
+           'message': 'Olası nedenler: credential formatı user@REALM değil, krb5.conf realm/KDC eksik, SPN yok, saat farkı, sertifika güvenilmiyor (HTTPS).'
+         }] }}
+
+- name: Collect session information
+  ansible.windows.win_powershell:
+    script: "{{ lookup('ansible.builtin.file', 'Get-SessionInfo.ps1') }}"
+  register: sql_connection_session
+  when: not (sql_connection_blocked | bool)
+
+- name: Evaluate session (CN-005..CN-009)
+  when: not (sql_connection_blocked | bool)
+  vars:
+    sql_connection_s: "{{ sql_connection_session.result }}"
+    sql_connection_short: "{{ sql_connection_target.split('.') | first | upper }}"
+    sql_connection_skew: >-
+      {{ ((now(utc=true).replace(tzinfo=None) - (sql_connection_session.result.utc_now | to_datetime('%Y-%m-%dT%H:%M:%SZ'))).total_seconds()) | abs | int }}
+    sql_connection_is_kerberos: "{{ sql_connection_s.authentication_type | lower == 'kerberos' }}"
+  ansible.builtin.set_fact:
+    sql_connection_session_info: "{{ sql_connection_s }}"
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [
+           {'id': 'CN-005', 'name': 'Authentication protocol',
+            'status': 'PASS' if sql_connection_is_kerberos | bool else ('FAIL' if sql_connection_require_kerberos else 'WARN'),
+            'expected': 'Kerberos', 'actual': sql_connection_s.authentication_type,
+            'message': 'Oturum Kerberos değil (muhtemelen NTLM). Double-hop ve delegasyon çalışmaz; SPN ve FQDN kullanımını kontrol edin.'},
+           {'id': 'CN-006', 'name': 'Local administrator (elevated)',
+            'status': 'PASS' if sql_connection_s.is_admin else 'FAIL',
+            'expected': 'true', 'actual': sql_connection_s.user ~ ' admin=' ~ sql_connection_s.is_admin,
+            'message': 'Kurulum hesabı hedefte yerel Administrators grubunda olmalı.'},
+           {'id': 'CN-007', 'name': 'Domain membership',
+            'status': 'PASS' if sql_connection_s.part_of_domain else 'FAIL',
+            'expected': 'domain member', 'actual': sql_connection_s.domain,
+            'message': 'Hedef domain üyesi değil; Kerberos modeli kullanılamaz.'},
+           {'id': 'CN-008', 'name': 'Hostname matches inventory',
+            'status': 'PASS' if sql_connection_s.computer_name | upper == sql_connection_short else 'WARN',
+            'expected': sql_connection_short, 'actual': sql_connection_s.computer_name,
+            'message': 'Inventory adı DNS alias (CNAME) olabilir veya yanlış sunucuya bağlanıldı. Kerberos SPN uyuşmazlığı riski.'},
+           {'id': 'CN-009', 'name': 'Clock skew vs controller (sec)',
+            'status': 'FAIL' if (sql_connection_skew | int) > sql_connection_clock_skew_fail_sec
+                      else ('WARN' if (sql_connection_skew | int) > sql_connection_clock_skew_warn_sec else 'PASS'),
+            'expected': '<= ' ~ sql_connection_clock_skew_warn_sec, 'actual': sql_connection_skew,
+            'message': 'Saat farkı Kerberos toleransına yaklaşıyor/aşıyor; NTP/domain time sync kontrol edin.'},
+           {'id': 'CN-010', 'name': 'Remote environment',
+            'status': 'INFO', 'expected': '-',
+            'actual': sql_connection_s.os_caption ~ ' build ' ~ sql_connection_s.os_build ~ ' | PS ' ~ sql_connection_s.ps_version
+                      ~ ' | listeners ' ~ (sql_connection_s.winrm_listeners | join(',')),
+            'message': ''}
+         ] }}

@@ -1,0 +1,48 @@
+---
+# Akış: inventory doğrula -> transport tespit et -> oturumu doğrula -> (ops.) medya erişimi -> rapor
+# Her adım sql_connection_checks listesine bir kayıt ekler. Bir adım bloklayıcı hata
+# verirse sonraki adımlar atlanır ama rapor yine de üretilir (AWX'te tam görünürlük).
+- name: Initialize connection check state
+  ansible.builtin.set_fact:
+    sql_connection_checks: []
+    sql_connection_blocked: false
+    sql_connection_target: "{{ ansible_host | default(inventory_hostname) }}"
+
+- name: Validate inventory naming and DNS
+  ansible.builtin.include_tasks: validate_inventory.yml
+
+- name: Detect WinRM transport
+  ansible.builtin.include_tasks: detect_transport.yml
+  when: not (sql_connection_blocked | bool)
+
+- name: Verify remote session
+  ansible.builtin.include_tasks: verify_session.yml
+  when: not (sql_connection_blocked | bool)
+
+- name: Verify media share access
+  ansible.builtin.include_tasks: verify_media_access.yml
+  when: not (sql_connection_blocked | bool)
+
+- name: Build connection report
+  ansible.builtin.include_role:
+    name: sql_common
+    tasks_from: report_checks
+  vars:
+    sql_common_report_title: "CONNECTIVITY CHECK"
+    sql_common_report_checks: "{{ sql_connection_checks }}"
+
+- name: Publish connection result
+  ansible.builtin.set_fact:
+    sql_connection_result:
+      status: "{{ sql_common_report_status }}"
+      counts: "{{ sql_common_report_counts }}"
+      scheme: "{{ sql_connection_scheme | default('none') }}"
+      port: "{{ sql_connection_port | default(0) }}"
+      checks: "{{ sql_connection_checks }}"
+
+- name: Stop host on connectivity failure
+  ansible.builtin.fail:
+    msg: >-
+      Bağlantı doğrulaması başarısız ({{ sql_connection_checks | selectattr('status', 'eq', 'FAIL') | map(attribute='id') | join(', ') }}).
+      Detay için yukarıdaki raporu inceleyin.
+  when: sql_common_report_status == 'FAILED'

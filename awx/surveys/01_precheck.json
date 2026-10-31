@@ -1,0 +1,26 @@
+{
+  "name": "SQL - 01 Precheck",
+  "description": "SQL Server 2025 kurulum öncesi salt-okuma kontrolleri. Hedef hostlar 'Limit' alanından seçilir.",
+  "spec": [
+    {
+      "question_name": "Instance adı",
+      "question_description": "Default instance için MSSQLSERVER. Named instance: en fazla 16 karakter.",
+      "variable": "sql_instance_name",
+      "type": "text",
+      "required": true,
+      "default": "MSSQLSERVER",
+      "min": 1,
+      "max": 16
+    },
+    {
+      "question_name": "TCP port",
+      "question_description": "Port çakışma kontrolü (PC-034) için.",
+      "variable": "sql_tcp_port",
+      "type": "integer",
+      "required": true,
+      "default": 1433,
+      "min": 1024,
+      "max": 65535
+    }
+  ]
+}

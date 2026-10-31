@@ -1,0 +1,3 @@
+# Controller / Execution Environment Python bağımlılıkları
+# pywinrm[kerberos] -> WinRM üzerinden Kerberos (pyspnego + krb5 binding)
+pywinrm[kerberos]>=0.4.3

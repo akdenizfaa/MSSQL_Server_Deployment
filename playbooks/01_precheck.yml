@@ -1,0 +1,77 @@
+---
+# PHASE 2 - Kurulum öncesi kontroller. Hedefte HİÇBİR değişiklik yapmaz.
+# Önce bağlantı katmanı çalışır (transport tespiti için zorunlu), sonra precheck.
+#
+# AWX/AAP : Job Template "SQL - 01 Precheck" (survey: awx/surveys/01_precheck.json)
+# CLI     : ansible-playbook -i inventories/dev/hosts.yml playbooks/01_precheck.yml --limit <host> \
+#             -e ansible_user=user@CORP.EXAMPLE.COM -e ansible_password=...
+
+- name: Initialize
+  ansible.builtin.import_playbook: _init_execution.yml
+
+- name: SQL Server 2025 - precheck
+  hosts: sql_targets
+  gather_facts: false
+  tasks:
+    - name: Connectivity and precheck
+      block:
+        - name: Establish and verify connection
+          ansible.builtin.include_role:
+            name: sql_connection
+
+        - name: Run precheck
+          ansible.builtin.include_role:
+            name: sql_precheck
+      rescue:
+        - name: Record failure point
+          ansible.builtin.set_fact:
+            sql_host_failed_at: "{{ ansible_failed_task.name | default('unknown') }}"
+
+- name: Publish summary
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Build per-host summary
+      ansible.builtin.set_fact:
+        sql_precheck_summary: >-
+          {{ sql_precheck_summary | default({}) | combine({
+               item: {
+                 'connection': (hostvars[item].sql_connection_result | default({})).status | default('FAILED'),
+                 'precheck': (hostvars[item].sql_precheck_result | default({})).status | default('NOT_RUN'),
+                 'failed_at': hostvars[item].sql_host_failed_at | default(''),
+                 'counts': (hostvars[item].sql_precheck_result | default({})).counts | default({}),
+                 'facts': (hostvars[item].sql_precheck_result | default({})).facts | default({}),
+                 'checks': (hostvars[item].sql_precheck_result | default({})).checks | default([])
+               }
+             }) }}
+      loop: "{{ groups['sql_targets'] | default([]) }}"
+      when: hostvars[item].sql_connection_result is defined or hostvars[item].sql_host_failed_at is defined
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Publish AWX artifact
+      ansible.builtin.set_stats:
+        data:
+          sql_execution_id: "{{ sql_execution_id }}"
+          sql_precheck_summary: "{{ sql_precheck_summary | default({}) }}"
+        per_host: false
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          execution_id: {{ sql_execution_id }}
+          {% for h, r in (sql_precheck_summary | default({})).items() %}
+          {{ '%-45s connection=%-22s precheck=%-22s %s' | format(h, r.connection, r.precheck, r.failed_at) }}
+          {% endfor %}
+
+    # Sadece precheck'i temiz geçen (PASSED / PASSED_WITH_WARNINGS ve strict değil) hostlar
+    # install fazına aday olur. Diğerleri varsa job FAILED biter.
+    - name: Fail job when any host is not ready
+      ansible.builtin.fail:
+        msg: "Kuruluma hazır olmayan hostlar: {{ sql_precheck_not_ready | join(', ') }}"
+      vars:
+        sql_precheck_not_ready: >-
+          {{ sql_precheck_summary | default({}) | dict2items
+             | rejectattr('value.failed_at', 'eq', '') | map(attribute='key') | list }}
+      when: sql_precheck_not_ready | length > 0

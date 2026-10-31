@@ -1,0 +1,41 @@
+---
+# CN-001: Kerberos, servis bileti için hedefin SPN'ini (HTTP/<fqdn>) kullanır.
+# IP adresi veya kısa ad ile bağlanılırsa Kerberos bileti alınamaz ve
+# istemci NTLM'e düşer ya da tamamen başarısız olur.
+- name: Evaluate target name format (CN-001)
+  vars:
+    sql_connection_is_ip: >-
+      {{ (sql_connection_target is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')) or (':' in sql_connection_target) }}
+    sql_connection_is_fqdn: "{{ '.' in sql_connection_target and not sql_connection_is_ip | bool }}"
+  ansible.builtin.set_fact:
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-001', 'name': 'Target name is FQDN',
+           'status': 'PASS' if sql_connection_is_fqdn | bool else 'FAIL',
+           'expected': 'FQDN (host.domain)', 'actual': sql_connection_target,
+           'message': 'Kerberos için IP/kısa ad yerine FQDN kullanın (inventory_hostname veya ansible_host).'
+         }] }}
+    sql_connection_blocked: "{{ not sql_connection_is_fqdn | bool }}"
+
+# CN-002: Controller (AWX EE) hedef adını çözebiliyor mu?
+- name: Resolve target name from controller (CN-002)
+  ansible.builtin.command:
+    argv: [getent, ahosts, "{{ sql_connection_target }}"]
+  delegate_to: localhost
+  register: sql_connection_dns
+  changed_when: false
+  failed_when: false
+  when: not (sql_connection_blocked | bool)
+
+- name: Record DNS result (CN-002)
+  ansible.builtin.set_fact:
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-002', 'name': 'DNS resolution from controller',
+           'status': 'PASS' if sql_connection_dns.rc == 0 else 'FAIL',
+           'expected': 'resolvable',
+           'actual': (sql_connection_dns.stdout_lines | first | default('unresolved')).split() | first | default('unresolved'),
+           'message': 'Controller/EE DNS ayarlarını ve kayıtları kontrol edin.'
+         }] }}
+    sql_connection_blocked: "{{ sql_connection_dns.rc != 0 }}"
+  when: not (sql_connection_blocked | bool)

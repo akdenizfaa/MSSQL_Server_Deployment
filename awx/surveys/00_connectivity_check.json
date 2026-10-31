@@ -1,0 +1,16 @@
+{
+  "name": "SQL - 00 Connectivity Check",
+  "description": "WinRM/Kerberos bağlantı doğrulaması. Hedef hostlar job template 'Limit' alanından seçilir.",
+  "spec": [
+    {
+      "question_name": "Medya paylaşımı (opsiyonel, double-hop testi)",
+      "question_description": "UNC yolu, ör. \\\\fileserver\\sqlmedia. Boş bırakılırsa CN-011 SKIPPED olur.",
+      "variable": "sql_connection_media_share",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "min": 0,
+      "max": 260
+    }
+  ]
+}

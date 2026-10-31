@@ -1,0 +1,48 @@
+---
+# CN-011: Hedef sunucu, WinRM oturumu içinden medya paylaşımına erişebiliyor mu?
+# Bu "double-hop" testidir (D-1). Kerberos delegasyonu yoksa oturumun ağ
+# kimliği olmadığı için erişim reddedilir. Bu fazda bilgi amaçlıdır (WARN),
+# kalıcı karar Phase 3'te verilecek.
+- name: Skip media test when no share configured (CN-011)
+  ansible.builtin.set_fact:
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-011', 'name': 'Media share access (double-hop)',
+           'status': 'SKIPPED', 'expected': 'readable', 'actual': 'not configured',
+           'message': 'sql_connection_media_share boş. Medya reposu bilgisi bekleniyor (IR-1).'
+         }] }}
+  when: sql_connection_media_share | length == 0
+
+- name: Test media share from target (CN-011)
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param ([Parameter(Mandatory)][string]$Path)
+      $Ansible.Changed = $false
+      try {
+          $null = Get-ChildItem -LiteralPath $Path -ErrorAction Stop | Select-Object -First 1
+          $Ansible.Result = @{ ok = $true; error = '' }
+      }
+      catch {
+          $Ansible.Result = @{ ok = $false; error = $_.Exception.Message }
+      }
+    parameters:
+      Path: "{{ sql_connection_media_share }}"
+  register: sql_connection_media
+  when: sql_connection_media_share | length > 0
+
+- name: Record media share result (CN-011)
+  ansible.builtin.set_fact:
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-011', 'name': 'Media share access (double-hop)',
+           'status': 'PASS' if sql_connection_media.result.ok else 'WARN',
+           'expected': 'readable',
+           'actual': ('readable (delegation=' ~ sql_connection_kerberos_delegation ~ ')') if sql_connection_media.result.ok
+                     else (sql_connection_media.result.error | truncate(120)),
+           'message': ('Erişim yok. delegation=false ise beklenen double-hop davranışıdır; Phase 3 kararı (D-1) gerekir.'
+                       if not sql_connection_kerberos_delegation
+                       else 'Delegasyon açık olmasına rağmen erişim yok: hesabın "sensitive" işaretli olmadığını, '
+                            ~ 'biletin forwardable olduğunu ve paylaşım/NTFS yetkilerini kontrol edin.')
+         }] }}
+  when: sql_connection_media_share | length > 0

@@ -1,0 +1,25 @@
+---
+# auto | https | http  (ortam group_vars'ında override edilir)
+sql_connection_winrm_scheme: auto
+
+sql_connection_https_port: 5986
+sql_connection_http_port: 5985
+sql_connection_port_probe_timeout: 5
+
+# validate | ignore   (sadece HTTPS'te anlamlı)
+sql_connection_cert_validation: validate
+
+# Kerberos dışında bir kimlik doğrulama (NTLM fallback) tespit edilirse FAIL.
+# NTLM'de double-hop (medya paylaşımı) çalışmaz; bu yüzden zorunlu tutuluyor.
+sql_connection_require_kerberos: true
+
+# Hedef saat sapması (saniye). Kerberos varsayılan toleransı 300 sn'dir.
+sql_connection_clock_skew_warn_sec: 60
+sql_connection_clock_skew_fail_sec: 300
+
+# D-1 (double-hop) için TGT'nin hedefe forward edilmesi.
+# DEFAULT false: medya reposu (IR-1) ve delegasyon kararı netleşmeden açılmaz.
+sql_connection_kerberos_delegation: false
+
+# Opsiyonel medya paylaşımı erişim testi. Boş ise test SKIPPED olur (IR-1 bekleniyor).
+sql_connection_media_share: ""

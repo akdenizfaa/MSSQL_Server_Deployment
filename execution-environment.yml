@@ -1,0 +1,23 @@
+---
+# ansible-builder v3 tanımı.
+# Build:  ansible-builder build -t <registry>/sql-automation-ee:<tag> -f execution-environment.yml
+#
+# DEFAULT: base image aşağıdaki gibi bırakıldı. Kurumunuzun onaylı/pinli EE
+# base image'ı varsa onu kullanın (bkz. docs/awx-setup.md, IR-13).
+version: 3
+
+images:
+  base_image:
+    name: quay.io/ansible/awx-ee:latest
+
+dependencies:
+  galaxy: collections/requirements.yml
+  python: requirements.txt
+  system:
+    - krb5-workstation [platform:rpm]
+    - krb5-devel [platform:rpm]
+    - gcc [platform:rpm]
+    - python3-devel [platform:rpm]
+
+# krb5.conf burada image'a GÖMÜLMEZ. Realm/KDC bilgisi ortama özeldir;
+# AWX'te container volume mount ile /etc/krb5.conf olarak verilir.

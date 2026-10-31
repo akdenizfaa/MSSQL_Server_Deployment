@@ -1,0 +1,11 @@
+---
+# AWX/AAP proje senkronizasyonunda bu dosyayı (collections/requirements.yml)
+# otomatik okur. Execution Environment build'inde de aynı dosya kullanılır.
+#
+# Sürüm aralığı: major sürüm sabit, minor/patch serbest.
+# Doğrulama sırasında test edilen sürümler: ansible.windows 3.9.2, community.windows 3.4.0
+collections:
+  - name: ansible.windows
+    version: ">=3.0.0,<4.0.0"
+  - name: community.windows
+    version: ">=3.0.0,<4.0.0"
