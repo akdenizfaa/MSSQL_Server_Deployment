@@ -1,0 +1,64 @@
+---
+# CN-003: WinRM transport tespiti (controller'dan TCP port probe).
+# Önce HTTPS (5986), sonra HTTP (5985). HTTPS bulunursa tercih edilir.
+# Bu sadece portun AÇIK olduğunu gösterir; gerçek WinRM/Kerberos doğrulaması
+# verify_session.yml içinde yapılır.
+- name: Probe WinRM HTTPS port
+  ansible.builtin.wait_for:
+    host: "{{ sql_connection_target }}"
+    port: "{{ sql_connection_https_port }}"
+    timeout: "{{ sql_connection_port_probe_timeout }}"
+    state: started
+  delegate_to: localhost
+  register: sql_connection_probe_https
+  ignore_errors: true # noqa: ignore-errors  (kapalı port beklenen bir sonuçtur, raporlanır)
+  when: sql_connection_winrm_scheme in ['auto', 'https']
+
+- name: Probe WinRM HTTP port
+  ansible.builtin.wait_for:
+    host: "{{ sql_connection_target }}"
+    port: "{{ sql_connection_http_port }}"
+    timeout: "{{ sql_connection_port_probe_timeout }}"
+    state: started
+  delegate_to: localhost
+  register: sql_connection_probe_http
+  ignore_errors: true # noqa: ignore-errors
+  when: sql_connection_winrm_scheme in ['auto', 'http']
+
+- name: Decide transport
+  vars:
+    sql_connection_https_open: "{{ sql_connection_probe_https is not skipped and sql_connection_probe_https is succeeded }}"
+    sql_connection_http_open: "{{ sql_connection_probe_http is not skipped and sql_connection_probe_http is succeeded }}"
+  ansible.builtin.set_fact:
+    sql_connection_scheme: >-
+      {{ 'https' if sql_connection_https_open | bool else ('http' if sql_connection_http_open | bool else 'none') }}
+    sql_connection_ports_seen: >-
+      {{ (['5986/open'] if sql_connection_https_open | bool else []) + (['5985/open'] if sql_connection_http_open | bool else []) }}
+
+- name: Record transport decision (CN-003)
+  ansible.builtin.set_fact:
+    sql_connection_port: >-
+      {{ sql_connection_https_port if sql_connection_scheme == 'https'
+         else (sql_connection_http_port if sql_connection_scheme == 'http' else 0) }}
+    sql_connection_blocked: "{{ sql_connection_scheme == 'none' }}"
+    sql_connection_checks: >-
+      {{ sql_connection_checks + [{
+           'id': 'CN-003', 'name': 'WinRM port reachable',
+           'status': 'FAIL' if sql_connection_scheme == 'none' else ('PASS' if sql_connection_scheme == 'https' else 'INFO'),
+           'expected': 'mode=' ~ sql_connection_winrm_scheme,
+           'actual': sql_connection_scheme ~ ' (' ~ (sql_connection_ports_seen | join(',') or 'no open port') ~ ')',
+           'message': ('WinRM portu kapalı: hedefte WinRM listener ve firewall kuralını kontrol edin.' if sql_connection_scheme == 'none'
+                       else 'HTTP + Kerberos mesaj şifrelemesi kullanılacak. HTTPS listener önerilir.')
+         }] }}
+
+# Tespit edilen değerler bu host için bağlantı değişkeni olarak set edilir.
+# set_fact önceliği inventory'den yüksektir; sonraki tüm Windows task'ları bunu kullanır.
+- name: Apply connection variables
+  ansible.builtin.set_fact:
+    ansible_port: "{{ sql_connection_port | int }}"
+    ansible_winrm_scheme: "{{ sql_connection_scheme }}"
+    ansible_winrm_server_cert_validation: "{{ sql_connection_cert_validation }}"
+    # HTTP'de şifrelemeyi açıkça zorunlu kıl; HTTPS'te TLS zaten şifreler.
+    ansible_winrm_message_encryption: "{{ 'always' if sql_connection_scheme == 'http' else 'auto' }}"
+    ansible_winrm_kerberos_delegation: "{{ sql_connection_kerberos_delegation }}"
+  when: not (sql_connection_blocked | bool)

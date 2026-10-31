@@ -1,0 +1,35 @@
+---
+# Ortak kontrol raporlayıcı.
+# Girdi : sql_common_report_title  (str)
+#         sql_common_report_checks (list of dict: id, name, status, expected, actual, message)
+# Çıktı : sql_common_report_status  PASSED | PASSED_WITH_WARNINGS | FAILED
+#         sql_common_report_counts  {PASS, WARN, FAIL, SKIPPED, INFO}
+- name: Compute check counts and overall status
+  ansible.builtin.set_fact:
+    sql_common_report_counts:
+      PASS: "{{ sql_common_report_checks | selectattr('status', 'eq', 'PASS') | list | length }}"
+      WARN: "{{ sql_common_report_checks | selectattr('status', 'eq', 'WARN') | list | length }}"
+      FAIL: "{{ sql_common_report_checks | selectattr('status', 'eq', 'FAIL') | list | length }}"
+      SKIPPED: "{{ sql_common_report_checks | selectattr('status', 'eq', 'SKIPPED') | list | length }}"
+      INFO: "{{ sql_common_report_checks | selectattr('status', 'eq', 'INFO') | list | length }}"
+    sql_common_report_status: >-
+      {{ 'FAILED' if (sql_common_report_checks | selectattr('status', 'eq', 'FAIL') | list | length) > 0
+         else ('PASSED_WITH_WARNINGS' if (sql_common_report_checks | selectattr('status', 'eq', 'WARN') | list | length) > 0
+         else 'PASSED') }}
+
+- name: "Report - {{ sql_common_report_title }}"
+  ansible.builtin.debug:
+    msg: |
+      {{ sql_common_report_title }} | {{ inventory_hostname }} | {{ sql_common_report_status }}
+      execution_id: {{ hostvars['localhost']['sql_execution_id'] | default('n/a') }}
+      {{ '%-7s %-8s %-38s %-30s %s' | format('ID', 'STATUS', 'CHECK', 'EXPECTED', 'ACTUAL') }}
+      {{ '-' * 120 }}
+      {% for c in sql_common_report_checks %}
+      {% set exp = (c.expected | default('-') | string) | truncate(30, true, '..') %}
+      {{ '%-7s %-8s %-38s %-30s %s' | format(c.id, c.status, c.name | truncate(38, true, '..'), exp, c.actual | default('-')) }}
+      {% if c.status in ['FAIL', 'WARN', 'INFO', 'SKIPPED'] and c.message | default('') | length > 0 %}
+                -> {{ c.message }}
+      {% endif %}
+      {% endfor %}
+      {{ '-' * 120 }}
+      {{ sql_common_report_counts.items() | map('join', '=') | join(' ') }}

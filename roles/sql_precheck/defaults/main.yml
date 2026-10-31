@@ -1,0 +1,24 @@
+---
+# Ortak (fazlar arası) değişkenler inventory group_vars'ta tanımlanır; rol bunları
+# kendi önekli değişkenlerine eşler. Böylece rol tek başına da test edilebilir.
+# ZORUNLU: hedef SQL Server sürümü (2019 | 2022 | 2025). Default YOK - her
+# çalıştırmada survey'den veya extra_vars'tan açıkça verilmelidir.
+sql_precheck_version: "{{ sql_version | default('') | string }}"
+sql_precheck_instance_name: "{{ sql_instance_name | default('MSSQLSERVER') }}"
+sql_precheck_tcp_port: "{{ sql_tcp_port | default(1433) }}"
+sql_precheck_binaries_drive: "{{ sql_binaries_drive | default('C') }}"
+
+# Kurumsal disk standardı: D = data + system DB root, L = log, T = tempdb
+sql_precheck_required_drives:
+  - { letter: "{{ sql_storage_drives.data | default('D') }}", purpose: "data + system DB root" }
+  - { letter: "{{ sql_storage_drives.log | default('L') }}", purpose: "log" }
+  - { letter: "{{ sql_storage_drives.tempdb | default('T') }}", purpose: "tempdb" }
+
+sql_precheck_allowed_filesystems: [NTFS, ReFS]
+# Microsoft best practice; WARN üretir, FAIL üretmez.
+sql_precheck_recommended_allocation_unit_kb: 64
+
+sql_precheck_fail_on_pending_reboot: true
+sql_precheck_allow_domain_controller: false
+# true -> WARN sonuçları da precheck'i başarısız sayar (PROD için önerilir).
+sql_precheck_fail_on_warning: false

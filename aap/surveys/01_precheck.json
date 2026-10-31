@@ -1,0 +1,39 @@
+{
+  "name": "SQL - 01 Precheck",
+  "description": "SQL Server 2019/2022/2025 kurulum öncesi salt-okuma kontrolleri. Hedef hostlar 'Limit' alanından seçilir.",
+  "spec": [
+    {
+      "question_name": "SQL Server sürümü",
+      "question_description": "Kurulacak sürüm. Desteklenen OS, .NET ve mevcut instance kontrolleri buna göre yapılır.",
+      "variable": "sql_version",
+      "type": "multiplechoice",
+      "required": true,
+      "choices": [
+        "2019",
+        "2022",
+        "2025"
+      ],
+      "default": ""
+    },
+    {
+      "question_name": "Instance adı",
+      "question_description": "Default instance için MSSQLSERVER. Named instance: en fazla 16 karakter.",
+      "variable": "sql_instance_name",
+      "type": "text",
+      "required": true,
+      "default": "MSSQLSERVER",
+      "min": 1,
+      "max": 16
+    },
+    {
+      "question_name": "TCP port",
+      "question_description": "Port çakışma kontrolü (PC-034) için.",
+      "variable": "sql_tcp_port",
+      "type": "integer",
+      "required": true,
+      "default": 1433,
+      "min": 1024,
+      "max": 65535
+    }
+  ]
+}

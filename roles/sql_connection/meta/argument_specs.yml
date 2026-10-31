@@ -1,0 +1,39 @@
+---
+# Rol girdileri çalışma başında Ansible tarafından otomatik doğrulanır.
+# Yanlış tip / izin verilmeyen değer -> rol hiç başlamadan anlaşılır bir hata.
+argument_specs:
+  main:
+    short_description: WinRM/Kerberos bağlantı tespiti ve doğrulaması
+    options:
+      sql_connection_winrm_scheme:
+        type: str
+        choices: [auto, https, http]
+        default: auto
+      sql_connection_https_port:
+        type: int
+        default: 5986
+      sql_connection_http_port:
+        type: int
+        default: 5985
+      sql_connection_port_probe_timeout:
+        type: int
+        default: 5
+      sql_connection_cert_validation:
+        type: str
+        choices: [validate, ignore]
+        default: validate
+      sql_connection_require_kerberos:
+        type: bool
+        default: true
+      sql_connection_clock_skew_warn_sec:
+        type: int
+        default: 60
+      sql_connection_clock_skew_fail_sec:
+        type: int
+        default: 300
+      sql_connection_kerberos_delegation:
+        type: bool
+        default: false
+      sql_connection_media_share:
+        type: str
+        default: ""

@@ -1,0 +1,43 @@
+---
+argument_specs:
+  main:
+    short_description: SQL Server 2025 kurulum öncesi salt-okuma kontrolleri
+    options:
+      sql_precheck_version:
+        type: str
+        description: Hedef SQL Server sürümü (2019 | 2022 | 2025). Zorunlu; tasks içinde doğrulanır.
+      sql_precheck_instance_name:
+        type: str
+        default: MSSQLSERVER
+      sql_precheck_tcp_port:
+        type: int
+        default: 1433
+      sql_precheck_binaries_drive:
+        type: str
+        default: C
+      sql_precheck_required_drives:
+        type: list
+        elements: dict
+        options:
+          letter:
+            type: str
+            required: true
+          purpose:
+            type: str
+            required: true
+      sql_precheck_allowed_filesystems:
+        type: list
+        elements: str
+        default: [NTFS, ReFS]
+      sql_precheck_recommended_allocation_unit_kb:
+        type: int
+        default: 64
+      sql_precheck_fail_on_pending_reboot:
+        type: bool
+        default: true
+      sql_precheck_allow_domain_controller:
+        type: bool
+        default: false
+      sql_precheck_fail_on_warning:
+        type: bool
+        default: false

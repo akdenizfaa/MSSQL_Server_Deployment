@@ -1,0 +1,8 @@
+---
+all:
+  children:
+    sql_targets:
+      hosts:
+        sqlsrv01.corp.example.com:
+          ansible_connection: local
+          ansible_python_interpreter: /usr/bin/python3

@@ -1,0 +1,4 @@
+---
+namespace: ansible
+name: windows
+version: 99.0.0

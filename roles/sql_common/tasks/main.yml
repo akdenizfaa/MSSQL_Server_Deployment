@@ -1,0 +1,5 @@
+---
+# sql_common doğrudan çalıştırılmaz; diğer roller tasks_from ile kullanır.
+- name: Explain helper role usage
+  ansible.builtin.debug:
+    msg: "Use include_role with tasks_from (e.g. report_checks)."

@@ -1,0 +1,15 @@
+---
+# AAP proje senkronizasyonunda bu dosya (collections/requirements.yml) otomatik okunur.
+# Execution Environment build'inde de aynı dosya kullanılır.
+#
+# ansible.windows Red Hat sertifikalı bir collection'dır; AAP'te Automation Hub
+# (veya private automation hub) üzerinden çekilir.
+#
+# Sürüm aralığı: major sürüm sabit, minor/patch serbest.
+# Doğrulamada test edilen sürüm: ansible.windows 3.9.2
+#
+# community.windows şimdilik kaldırıldı: Faz 1-2 yalnızca ansible.windows modüllerini
+# (win_ping, win_powershell) kullanıyor. Faz 3'te ISO mount için gerekirse eklenecek.
+collections:
+  - name: ansible.windows
+    version: ">=3.0.0,<4.0.0"

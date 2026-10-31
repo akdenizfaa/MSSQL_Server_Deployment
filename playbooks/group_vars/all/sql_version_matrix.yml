@@ -1,0 +1,54 @@
+---
+# SQL Server sürüm matrisi - fazlar arası ortak VERİ (kod değil).
+#
+# Konum notu: Ansible group_vars'ı yalnızca inventory'nin veya PLAYBOOK'un yanında okur.
+# Bu dosya playbooks/group_vars/all/ altında olduğu için playbooks/ içindeki tüm
+# playbook'lara otomatik yüklenir.
+#
+# Kaynaklar (doğrulama tarihi 2026-11-01):
+#  - SQL Server 2019/2022/2025 Hardware and Software Requirements (Microsoft Learn)
+#  - "Using SQL Server in Windows" destek matrisi: 2019/2022/2025 x WS2019/2022/2025
+#    kombinasyonlarının tamamı RTM'den itibaren destekli.
+#
+# Proje kapsamı: Hedef işletim sistemleri Windows Server 2019/2022/2025.
+# (Microsoft SQL 2019/2022'yi WS2016'da da destekler; WS2016 bu projenin kapsamı dışında.)
+
+sql_os_catalog:
+  17763: "Windows Server 2019"
+  20348: "Windows Server 2022"
+  26100: "Windows Server 2025"
+
+sql_version_matrix:
+  "2019":
+    product: "SQL Server 2019"
+    major: 15
+    version_prefix: "15.0"
+    instance_id_prefix: "MSSQL15"
+    supported_os_builds: [17763, 20348, 26100]
+    # Microsoft 2019 için ayrı bir .NET sürümü belirtmiyor:
+    # "Minimum operating system includes minimum .NET Framework."
+    # null -> .NET kontrolü INFO olarak raporlanır (desteklenen OS yeterli kabul edilir).
+    min_dotnet_release: null
+    min_ram_mb: 1024 # Express dışı edition'lar
+    min_cpu_mhz: 1400
+    min_system_drive_free_gb: 6
+  "2022":
+    product: "SQL Server 2022"
+    major: 16
+    version_prefix: "16.0"
+    instance_id_prefix: "MSSQL16"
+    supported_os_builds: [17763, 20348, 26100]
+    min_dotnet_release: 461808 # .NET Framework 4.7.2
+    min_ram_mb: 1024
+    min_cpu_mhz: 1400
+    min_system_drive_free_gb: 6
+  "2025":
+    product: "SQL Server 2025"
+    major: 17
+    version_prefix: "17.0"
+    instance_id_prefix: "MSSQL17"
+    supported_os_builds: [17763, 20348, 26100]
+    min_dotnet_release: 461808 # .NET Framework 4.7.2
+    min_ram_mb: 1024
+    min_cpu_mhz: 1400
+    min_system_drive_free_gb: 6

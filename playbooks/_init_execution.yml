@@ -1,0 +1,22 @@
+---
+# Ortak başlangıç play'i. Her playbook bunu ilk olarak import eder.
+# execution_id controller'da BİR kez üretilir ve tüm hostlar aynı ID'yi kullanır
+# (log / inventory / CMDB kayıtlarının korelasyonu için - ADR A-7).
+- name: Initialize execution context
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Generate execution_id and timestamps
+      ansible.builtin.set_fact:
+        sql_execution_id: "{{ (now(utc=true).isoformat() ~ ((2 ** 62) | random | string)) | to_uuid }}"
+        sql_execution_started_utc: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+        # AAP job ID (awx_job_id) varsa korunur; CLI çalışmasında 'cli' yazılır.
+        sql_execution_job_id: "{{ awx_job_id | default(tower_job_id | default('cli')) }}"
+
+    - name: Show execution context
+      ansible.builtin.debug:
+        msg:
+          - "execution_id : {{ sql_execution_id }}"
+          - "job_id       : {{ sql_execution_job_id }}"
+          - "started_utc  : {{ sql_execution_started_utc }}"

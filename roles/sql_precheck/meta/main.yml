@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: sql-automation
+  description: SQL Server 2025 kurulum öncesi salt-okuma kontrolleri.
+  license: proprietary
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Windows
+      versions: ["2019", "2022", "2025"]
+dependencies: []
